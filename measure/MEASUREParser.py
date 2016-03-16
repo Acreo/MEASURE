@@ -87,7 +87,8 @@ class MEASUREParser:
 
         state = variable("state")
         statetrans = Group(variable("from") + to.suppress() + variable("to"))("trans")
-        fsm = (statetrans|state)
+        stateenter = Group(to.suppress() + variable("enter"))("edgetrig")
+        fsm = (statetrans|stateenter|state)
 
         action = Group(fsm + eq.suppress() + Group(OneOrMore(actFunExpr))("functions"))("action")
         actions = Group(actionTok + obrace + OneOrMore(action) + ebrace)("actions")
@@ -165,12 +166,14 @@ class MEASUREParser:
     def _actionsToDict(self,parseres):
         actions = list()
         for action in parseres['actions']:
-    #        print(action.asXML())
+            #print(action.asXML())
             act = dict()
             if "state" in action:
                 act['state'] = {"in":action['state']}
             elif "trans" in action:
                 act['state'] = {"from":action['trans']['from'], "to":action['trans']['to']}
+            elif "edgetrig" in action:
+                act['state'] = {"enter":action['edgetrig']['enter']}
             else:
                 print("missing state or trans in action")
                 sys.exit(1)
@@ -303,6 +306,7 @@ def main():
               " z1 = Notify(target = \"controller\", message = \"we are in z1\"); Publish(topic = \"alarms\", message = \"warning\");\n" \
               " z2 = Notify(target = \"controller\", message = \"we are in z2\");\n" \
               " z3 = Notify(target = \"controller\", message = \"we are in z3\");\n" \
+              " ->z3 = Notify(target = \"controller\", message = \"we entered z3\");\n" \
               " z1->z3 = Notify(target = \"controller\", message = \"we are in z3\");\n" \
               "}\n"
 
