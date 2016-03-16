@@ -87,8 +87,9 @@ class MEASUREParser:
 
         state = variable("state")
         statetrans = Group(variable("from") + to.suppress() + variable("to"))("trans")
-        stateenter = Group(to.suppress() + variable("enter"))("edgetrig")
-        fsm = (statetrans|stateenter|state)
+        stateenter = Group(to.suppress() + variable("enter"))("edge")
+        stateleave = Group(variable("leave") + to.suppress())("edge")
+        fsm = (statetrans|stateleave | stateenter|state)
 
         action = Group(fsm + eq.suppress() + Group(OneOrMore(actFunExpr))("functions"))("action")
         actions = Group(actionTok + obrace + OneOrMore(action) + ebrace)("actions")
@@ -107,7 +108,6 @@ class MEASUREParser:
                  {"pname":"message","type":"pstr"},
              ]}
         ]
-
         self.zoneFunctions = [
             {"fname":"AVG",
              "parameters": [
@@ -166,16 +166,22 @@ class MEASUREParser:
     def _actionsToDict(self,parseres):
         actions = list()
         for action in parseres['actions']:
-            #print(action.asXML())
+            print(action.asXML())
             act = dict()
             if "state" in action:
                 act['state'] = {"in":action['state']}
             elif "trans" in action:
                 act['state'] = {"from":action['trans']['from'], "to":action['trans']['to']}
-            elif "edgetrig" in action:
-                act['state'] = {"enter":action['edgetrig']['enter']}
+            elif "edge" in action:
+                if "enter" in action['edge']:
+                    act['state'] = {"enter":action['edge']['enter']}
+                elif "leave" in action['edge']:
+                    act['state'] = {"leave":action['edge']['leave']}
+                else:
+                    print("missing leave or enter in action edge")
+                    sys.exit(1)
             else:
-                print("missing state or trans in action")
+                print("missing state, edge, or  trans in action")
                 sys.exit(1)
 
             funclist = list()
@@ -307,7 +313,8 @@ def main():
               " z2 = Notify(target = \"controller\", message = \"we are in z2\");\n" \
               " z3 = Notify(target = \"controller\", message = \"we are in z3\");\n" \
               " ->z3 = Notify(target = \"controller\", message = \"we entered z3\");\n" \
-              " z1->z3 = Notify(target = \"controller\", message = \"we are in z3\");\n" \
+              " z3-> = Notify(target = \"controller\", message = \"we left z3\");\n" \
+              " z1->z3 = Notify(target = \"controller\", message = \"we came from z1 to z3\");\n" \
               "}\n"
 
     MALTestString = mString + zString + aString
