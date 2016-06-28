@@ -3,6 +3,10 @@
 __author__ = 'eponsko'
 from pyparsing import Combine,Regex,Word,alphanums,alphas,Literal,Group,Optional,ZeroOrMore,OneOrMore,Forward,dblQuotedString,ParseException,nums,QuotedString
 import sys
+
+class MEASUREException(Exception):
+    pass
+
 class MEASUREParser:
     def __init__(self):
 
@@ -11,22 +15,22 @@ class MEASUREParser:
         self.var_list = dict()
         period = Literal(".")
 
-        variable = Word(alphas, alphanums + "."+ "_")
-        number = Word(nums+".")
-        integer = Word(nums)
-        float = Combine(integer + "." + integer)
-        ipAddress = Combine(Word(nums) + ('.' + Word(nums))*3)
-        quote = (Literal("\"").suppress()|Literal("'").suppress())
-        string = quote + Regex(r'(?:[^"\n\r\\]|(?:"")|(?:\\x[0-9a-fA-F]+)|(?:\\.))*') + quote
+        variable = Word(alphas, alphanums + "."+ "_"+"-").setName("variable")
+        number = Word(nums+".").setName("number")
+        integer = Word(nums).setName("integer")
+        float = Combine(integer + "." + integer).setName("float")
+        ipAddress = Combine(Word(nums) + ('.' + Word(nums))*3).setName("ipAddress")
+        quote = (Literal("\"").suppress()|Literal("'").suppress()).setName("quote")
+        string = (quote + Regex(r'(?:[^"\n\r\\]|(?:"")|(?:\\x[0-9a-fA-F]+)|(?:\\.))*') + quote).setName("string")
 
         # special characters
-        oparen = Literal("(").suppress()
-        eparen = Literal(")").suppress()
-        semicolon = Literal(";").suppress()
-        comma = Literal(",").suppress()
-        obrace = Literal("{").suppress()
-        ebrace = Literal("}").suppress()
-        to = Literal("->")
+        oparen = Literal("(").suppress().setName("opening parenthesis")
+        eparen = Literal(")").suppress().setName("closing parenthesis")
+        semicolon = Literal(";").suppress().setName("semicolon")
+        comma = Literal(",").suppress().setName("comma")
+        obrace = Literal("{").suppress().setName("opening brace")
+        ebrace = Literal("}").suppress().setName("closing brace")
+        to = Literal("->").setName("right-arrow")
 
 
         # section literals
@@ -35,16 +39,16 @@ class MEASUREParser:
         actionTok = Literal("actions").suppress()
 
         # arithmetic literals
-        eq = Literal("=")
-        geq = Literal(">=")
-        leq = Literal("<=")
-        gt = Literal(">")
-        lt = Literal("<")
-        minus = Literal("-")
-        plus = Literal("+")
-        _and = (Literal("&&")|Literal("and"))
-        _or = (Literal("||")|Literal("or"))
-        _not = (Literal("!")|Literal("not"))
+        eq = Literal("=").setName("equal sign")
+        geq = Literal(">=").setName("greater or equal sign")
+        leq = Literal("<=").setName("less or equal sign")
+        gt = Literal(">").setName("greater than sign")
+        lt = Literal("<").setName("less than sign")
+        minus = Literal("-").setName("minus sign")
+        plus = Literal("+").setName("plus sign")
+        _and = (Literal("&&")|Literal("and")).setName("and sign")
+        _or = (Literal("||")|Literal("or")).setName("or sign")
+        _not = (Literal("!")|Literal("not")).setName("not sign")
 
         # Productions for measurement definitions
 #        paramExpr = Group(Optional(((variable)("pname") + eq.suppress() + (number|variable|dblQuotedString)("pval")) + ZeroOrMore(comma + (number|variable|dblQuotedString)("p"))))
@@ -68,14 +72,18 @@ class MEASUREParser:
                               + Optional(comma))("param")
         arithParamExpr =  Group(ZeroOrMore(arithNamedParam))("params")
 
-        arithFuncExpr = Group(variable("fname") + oparen + arithParamExpr("params") + eparen)("function")
-        arithTok = (arithFuncExpr|number("num")|variable("var"))
+        arithFuncExpr = Group(variable("fname") + oparen + arithParamExpr("params") + eparen + Optional(comma))("function")
+
+        arithNestFuncExpr = Group(OneOrMore(arithFuncExpr))("params")
+        arithFuncExpr2 = Group(variable("fname") + oparen + arithNestFuncExpr + eparen)("function")
+
+        arithTok = (arithFuncExpr|arithFuncExpr2|number("num")|variable("var"))
         opExpr = (eq|geq|leq|gt|lt|minus|plus|_and|_or)
         arithExpr = Forward()
         arithExpr << Group(oparen + Group((arithTok|arithExpr))("l") + opExpr("op") + Group((arithTok|arithExpr))("r") + eparen)("expression")
 
-        zoneExpr = Group(variable("zname") + eq.suppress() + arithExpr + semicolon)("zone")
-        zones = Group(zoneTok + obrace + OneOrMore(zoneExpr) + ebrace)("zones")
+        zoneExpr = Group(variable("zname") + eq.suppress() + arithExpr + semicolon)("zone").setName("ZoneExpr")
+        zones = Group(zoneTok + obrace + OneOrMore(zoneExpr) + ebrace)("zones").setName("Zones")
 
         # Productions for action definitions
         actNamedParam = Group((variable)("pname") + eq.suppress() +
@@ -159,14 +167,13 @@ class MEASUREParser:
                 f['params'].append(m)
             else:
                 print("Unknown field in param")
-                sys.exit(1)
+                raise MEASUREException("Unknown field in param")
         return f
 
 
     def _actionsToDict(self,parseres):
         actions = list()
         for action in parseres['actions']:
-            print(action.asXML())
             act = dict()
             if "state" in action:
                 act['state'] = {"in":action['state']}
@@ -179,10 +186,10 @@ class MEASUREParser:
                     act['state'] = {"leave":action['edge']['leave']}
                 else:
                     print("missing leave or enter in action edge")
-                    sys.exit(1)
+                    raise MEASUREException("missing leave or enter in action edge")
             else:
                 print("missing state, edge, or  trans in action")
-                sys.exit(1)
+                raise MEASUREException("missing state, edge, or  trans in action")
 
             funclist = list()
             for function in action['functions']:
@@ -209,12 +216,12 @@ class MEASUREParser:
             return {"pval":float(expression['num'])}
         else:
             print("Unknown element in expression: ", expression.asXML())
-            sys.exit(1)
+            raise MEASUREException("Unknown element in expression: ", expression.asXML())
         return exp
 
     def _zonesToDict(self,parseres):
         zones = list()
-
+       # print(parseres['zones'].asXML())
         for zone in parseres['zones']:
             z = dict()
             z[zone['zname']] = self._parseExpression(zone['expression'])
@@ -256,6 +263,7 @@ class MEASUREParser:
             mpy['zones'] = self._zonesToDict(res)
             return mpy
         except ParseException as e:
+
             raise e
 
     def parseToJSON(self,source):
@@ -394,5 +402,4 @@ def main():
 if __name__ == '__main__':
     main()
 
-
-
+    
