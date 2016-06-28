@@ -9,98 +9,125 @@ class MEASUREException(Exception):
 
 class MEASUREParser:
     def __init__(self):
+        self.dbgLiterals = False
+        self.dbgMeasurement = False
+        self.dbgZones = False
+        self.dbgActions = False
+        self.build_MEASURE()
 
+    def debug_all(self):
+        self.dbgLiterals = True
+        self.dbgMeasurement = True
+        self.dbgZones = True
+        self.dbgActions = True
+        self.build_MEASURE()
+        
+    def debug_groups(self):        
+        self.dbgMeasurement = True
+        self.dbgZones = True
+        self.dbgActions = True
+        self.build_MEASURE()
+        
+    def debug_literals(self):            
+        self.dbgLiterals = True
+        self.build_MEASURE()
+        
+    def build_MEASURE(self):
+        
         ## Grammar definition
         # literals
         self.var_list = dict()
         period = Literal(".")
 
-        variable = Word(alphas, alphanums + "."+ "_"+"-").setName("variable")
-        number = Word(nums+".").setName("number")
-        integer = Word(nums).setName("integer")
-        float = Combine(integer + "." + integer).setName("float")
-        ipAddress = Combine(Word(nums) + ('.' + Word(nums))*3).setName("ipAddress")
-        quote = (Literal("\"").suppress()|Literal("'").suppress()).setName("quote")
-        string = (quote + Regex(r'(?:[^"\n\r\\]|(?:"")|(?:\\x[0-9a-fA-F]+)|(?:\\.))*') + quote).setName("string")
+        variable = Word(alphas, alphanums + "." + "_" + "-").setName("variable").setDebug(self.dbgLiterals)
+        number = Word(nums+".").setName("number").setDebug(self.dbgLiterals)
+        integer = Word(nums).setName("integer").setDebug(self.dbgLiterals)
+        float = Combine(integer + "." + integer).setName("float").setDebug(self.dbgLiterals)
+        ipAddress = Combine(integer + ('.' + integer)*3).setName("ipAddress").setDebug(self.dbgLiterals)
+        quote = (Literal("\"").suppress()|Literal("'").suppress()).setName("quote").setDebug(self.dbgLiterals)
+        string = (quote + Regex(r'(?:[^"\n\r\\]|(?:"")|(?:\\x[0-9a-fA-F]+)|(?:\\.))*') + quote).setName("string").setDebug(self.dbgLiterals)
 
         # special characters
-        oparen = Literal("(").suppress().setName("opening parenthesis")
-        eparen = Literal(")").suppress().setName("closing parenthesis")
-        semicolon = Literal(";").suppress().setName("semicolon")
-        comma = Literal(",").suppress().setName("comma")
-        obrace = Literal("{").suppress().setName("opening brace")
-        ebrace = Literal("}").suppress().setName("closing brace")
-        to = Literal("->").setName("right-arrow")
+        oparen = Literal("(").suppress().setName("opening parenthesis").setDebug(self.dbgLiterals)
+        eparen = Literal(")").suppress().setName("closing parenthesis").setDebug(self.dbgLiterals)
+        semicolon = Literal(";").suppress().setName("semicolon").setDebug(self.dbgLiterals)
+        comma = Literal(",").suppress().setName("comma").setDebug(self.dbgLiterals)
+        obrace = Literal("{").suppress().setName("opening brace").setDebug(self.dbgLiterals)
+        ebrace = Literal("}").suppress().setName("closing brace").setDebug(self.dbgLiterals)
+        to = Literal("->").setName("right-arrow").setDebug(self.dbgLiterals)
 
 
         # section literals
-        measurements = Literal("measurements").suppress()
-        zoneTok = Literal("zones").suppress()
-        actionTok = Literal("actions").suppress()
+        measurements = Literal("measurements").suppress().setDebug(self.dbgLiterals)
+        zoneTok = Literal("zones").suppress().setDebug(self.dbgLiterals)
+        actionTok = Literal("actions").suppress().setDebug(self.dbgLiterals)
 
         # arithmetic literals
-        eq = Literal("=").setName("equal sign")
-        geq = Literal(">=").setName("greater or equal sign")
-        leq = Literal("<=").setName("less or equal sign")
-        gt = Literal(">").setName("greater than sign")
-        lt = Literal("<").setName("less than sign")
-        minus = Literal("-").setName("minus sign")
-        plus = Literal("+").setName("plus sign")
-        _and = (Literal("&&")|Literal("and")).setName("and sign")
-        _or = (Literal("||")|Literal("or")).setName("or sign")
-        _not = (Literal("!")|Literal("not")).setName("not sign")
+        eq = Literal("=").setName("equal sign").setDebug(self.dbgLiterals)
+        geq = Literal(">=").setName("greater or equal sign").setDebug(self.dbgLiterals)
+        leq = Literal("<=").setName("less or equal sign").setDebug(self.dbgLiterals)
+        gt = Literal(">").setName("greater than sign").setDebug(self.dbgLiterals)
+        lt = Literal("<").setName("less than sign").setDebug(self.dbgLiterals)
+        minus = Literal("-").setName("minus sign").setDebug(self.dbgLiterals)
+        plus = Literal("+").setName("plus sign").setDebug(self.dbgLiterals)
+        _and = (Literal("&&")|Literal("and")).setName("and sign").setDebug(self.dbgLiterals)
+        _or = (Literal("||")|Literal("or")).setName("or sign").setDebug(self.dbgLiterals)
+        _not = (Literal("!")|Literal("not")).setName("not sign").setDebug(self.dbgLiterals)
 
         # Productions for measurement definitions
 #        paramExpr = Group(Optional(((variable)("pname") + eq.suppress() + (number|variable|dblQuotedString)("pval")) + ZeroOrMore(comma + (number|variable|dblQuotedString)("p"))))
 
-        namedParam = Group((variable)("pname") + eq.suppress() + (ipAddress("pipaddr")|float("pfloat")|integer("pint")|variable("pvar")) + Optional(comma))("param")
-        paramExpr =  Group(ZeroOrMore(namedParam))("params")
-        functionExpr = Group(variable("fname") + oparen + paramExpr + eparen )("function")
+        namedParam = Group((variable)("pname") + eq.suppress() + (ipAddress("pipaddr")|float("pfloat")|integer("pint")|variable("pvar")) + Optional(comma))("param").setDebug(self.dbgMeasurement)
+        paramExpr =  Group(ZeroOrMore(namedParam))("params").setDebug(self.dbgMeasurement)
+        functionExpr = Group(variable("fname") + oparen + paramExpr + eparen )("function").setDebug(self.dbgMeasurement)
 
 
-        measurementExpr = Group(variable("mvar") + eq.suppress() + (functionExpr) + semicolon)("measure")
-        measurementList = OneOrMore(measurementExpr)
-        measure = Group(measurements + obrace + measurementList + ebrace)("measurements")
+        measurementExpr = Group(variable("mvar") + eq.suppress() + (functionExpr) + semicolon)("measure").setDebug(self.dbgMeasurement)
+        measurementList = OneOrMore(measurementExpr).setDebug(self.dbgMeasurement)
+        measure = Group(measurements + obrace + measurementList + ebrace)("measurements").setDebug(self.dbgMeasurement)
 
 
 
         # Productions for zone definitions
-        arithParamExpr = Group(Optional((number|variable|string)("param") + ZeroOrMore(comma + (number|variable|string)("param"))))
+        arithParamExpr = Group(Optional((number|variable|string)("param") + ZeroOrMore(comma + (number|variable|string)("param")))).setDebug(self.dbgZones)
 
         arithNamedParam = Group((variable)("pname") + eq.suppress() +
                               (ipAddress("pipaddr")|float("pfloat")|integer("pint")|variable("pvar")|dblQuotedString("pstr"))
-                              + Optional(comma))("param")
-        arithParamExpr =  Group(ZeroOrMore(arithNamedParam))("params")
+                              + Optional(comma))("param").setDebug(self.dbgZones)
+        arithParamExpr =  Group(ZeroOrMore(arithNamedParam))("params").setDebug(self.dbgZones)
 
-        arithFuncExpr = Group(variable("fname") + oparen + arithParamExpr("params") + eparen + Optional(comma))("function")
+        arithFuncExpr = Group(variable("fname") + oparen + arithParamExpr("params") + eparen + Optional(comma))("function").setDebug(self.dbgZones)
 
-        arithNestFuncExpr = Group(OneOrMore(arithFuncExpr))("params")
-        arithFuncExpr2 = Group(variable("fname") + oparen + arithNestFuncExpr + eparen)("function")
+        arithNestFuncExpr = Group(OneOrMore(arithFuncExpr))("params").setDebug(self.dbgZones)
+        arithFuncExpr2 = Group(variable("fname") + oparen + arithNestFuncExpr + eparen)("function").setDebug(self.dbgZones)
 
-        arithTok = (arithFuncExpr|arithFuncExpr2|number("num")|variable("var"))
-        opExpr = (eq|geq|leq|gt|lt|minus|plus|_and|_or)
-        arithExpr = Forward()
-        arithExpr << Group(oparen + Group((arithTok|arithExpr))("l") + opExpr("op") + Group((arithTok|arithExpr))("r") + eparen)("expression")
+        arithTok = (arithFuncExpr|arithFuncExpr2|number("num")|variable("var")).setDebug(self.dbgZones)
+        opExpr = (eq|geq|leq|gt|lt|minus|plus|_and|_or).setDebug(self.dbgZones)
+        arithExpr = Forward().setDebug(self.dbgZones)
+        arithExpr << Group(oparen + Group((arithTok|arithExpr))("l") + opExpr("op") + Group((arithTok|arithExpr))("r") + eparen)("expression").setDebug(self.dbgZones)
 
-        zoneExpr = Group(variable("zname") + eq.suppress() + arithExpr + semicolon)("zone").setName("ZoneExpr")
-        zones = Group(zoneTok + obrace + OneOrMore(zoneExpr) + ebrace)("zones").setName("Zones")
+        zoneExpr = Group(variable("zname") + eq.suppress() + arithExpr + semicolon)("zone").setName("ZoneExpr").setDebug(self.dbgZones)
+        zones = Group(zoneTok + obrace + OneOrMore(zoneExpr) + ebrace)("zones").setName("Zones").setDebug(self.dbgZones)
 
         # Productions for action definitions
         actNamedParam = Group((variable)("pname") + eq.suppress() +
                               (ipAddress("pipaddr")|float("pfloat")|integer("pint")|variable("pvar")|dblQuotedString("pstr"))
-                              + Optional(comma))("param")
-        actParamExpr =  Group(ZeroOrMore(actNamedParam))("params")
+                              + Optional(comma))("param").setDebug(self.dbgActions)
+        actParamExpr =  Group(ZeroOrMore(actNamedParam))("params").setDebug(self.dbgActions)
 
-        actFunExpr = Group(variable("fname") + oparen + actParamExpr + eparen + semicolon)("function")
+        actFunExpr = Group(variable("fname") + oparen + actParamExpr + eparen + semicolon)("function").setDebug(self.dbgActions)
 
-        state = variable("state")
-        statetrans = Group(variable("from") + to.suppress() + variable("to"))("trans")
-        stateenter = Group(to.suppress() + variable("enter"))("edge")
-        stateleave = Group(variable("leave") + to.suppress())("edge")
-        fsm = (statetrans|stateleave | stateenter|state)
+        # statevariable doesn't allow "-", because its confused with "->"
+        statevariable = Word(alphas, alphanums + "." + "_").setName("statevariable")
 
-        action = Group(fsm + eq.suppress() + Group(OneOrMore(actFunExpr))("functions"))("action")
-        actions = Group(actionTok + obrace + OneOrMore(action) + ebrace)("actions")
+        state = statevariable("state").setDebug(self.dbgActions)
+        statetrans = Group(statevariable("from") + to.suppress() + statevariable("to"))("trans").setDebug(self.dbgActions)
+        stateenter = Group(to.suppress() + statevariable("enter"))("edge").setDebug(self.dbgActions)
+        stateleave = Group(statevariable("leave") + to.suppress())("edge").setDebug(self.dbgActions)
+        fsm = (statetrans|stateleave | stateenter|state).setDebug(self.dbgActions)
+
+        action = Group(fsm + eq.suppress() + Group(OneOrMore(actFunExpr))("functions"))("action").setDebug(self.dbgActions)
+        actions = Group(actionTok + obrace + OneOrMore(action) + ebrace)("actions").setDebug(self.dbgActions)
 
         self.MEASURE = measure + zones + actions
 
@@ -326,11 +353,30 @@ def main():
               "}\n"
 
     MALTestString = mString + zString + aString
+    MALTestString = 'measurements {' \
+                   'm1 = overload.risk.rx(interface = virtual-sap1);' \
+                   'm2 = overload.risk.rx(interface = virtual-sap2);' \
+                   '} zones {' \
+                   'z1 = (AVG(val = m1, max_age = "5 minute") < 0.5);' \
+                   'z2 = (AVG(val = m2, max_age = "5 minute") > 0.5);' \
+                   '} actions {' \
+                   'z1->z2 = Publish(topic = "alarms", message = "z1 to z2"); Notify(target = "alarms", message = "z1 to z2");' \
+                   'z2->z1 = Publish(topic = "alarms", message = "z2 to z");' \
+                   '->z1 = Publish(topic = "alarms", message = "entered z1");' \
+                   'z1-> = Publish(topic = "alarms", message = "left z1");' \
+                   'z1 = Publish(topic = "alarms", message = "in z1");' \
+                   'z2 = Publish(topic = "alarms", message = "in z2");' \
+                   '}'
+
+
 
     print("Input MEASURE string: \n",MALTestString)
 
 
+
+
     mparse = MEASUREParser()
+
 
     try:
         print("##############################")
